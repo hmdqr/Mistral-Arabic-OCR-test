@@ -1,6 +1,6 @@
 # 📖 Mistral OCR: أداة تحرير الوثائق العربية بالذكاء الاصطناعي
 
-[![شاهد الشرح الكامل على يوتيوب](https://raw.githubusercontent.com/Pythonation/Mistral-Arabic-OCR-test/main/youtube_thumbnail.png)](https://youtu.be/njjOAYthjxQ)
+[![شاهد الشرح الكامل على يوتيوب](https://img.youtube.com/vi/njjOAYthjxQ/maxresdefault.jpg)
 
 **[📺 اضغط هنا لمشاهدة الشرح الكامل والعملي على يوتيوب 📺](https://youtu.be/njjOAYthjxQ)**
 
