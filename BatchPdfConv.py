@@ -2,9 +2,9 @@
 import os
 import sys
 import base64
-import csv
 import time
 import logging
+import sqlite3
 
 # Third-party imports
 from mistralai import Mistral
@@ -17,7 +17,7 @@ load_dotenv()
 # Configuration
 DOC_DIR = "docs_import"
 EXPORT_DIR = "docs_exports"
-DB_CSV = "processed_files.csv"
+DB_FILE = "processed_files.db"
 LOG_FILE = "conversion.log"
 MAX_RETRIES = 5
 INITIAL_BACKOFF = 1  # in seconds
@@ -37,7 +37,61 @@ if not API_KEY:
 
 client = Mistral(api_key=API_KEY)
 
-FIELDNAMES = ["filename", "status", "attempts", "error"]
+
+def init_database():
+    """Initialize the SQLite database and create table if it doesn't exist."""
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS processed_files (
+            filename TEXT PRIMARY KEY,
+            status TEXT NOT NULL,
+            attempts INTEGER NOT NULL,
+            error TEXT,
+            processed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    conn.commit()
+    conn.close()
+
+
+def load_processed():
+    """Load processed file records from SQLite database into a dict."""
+    init_database()
+    processed = {}
+    
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute('SELECT filename, status, attempts, error FROM processed_files')
+    
+    for row in cursor.fetchall():
+        filename, status, attempts, error = row
+        processed[filename] = {
+            'filename': filename,
+            'status': status,
+            'attempts': str(attempts),
+            'error': error or ''
+        }
+    
+    conn.close()
+    return processed
+
+
+def update_db(record):
+    """Update or insert a processing record into the SQLite database."""
+    init_database()
+    
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    
+    # Use INSERT OR REPLACE for atomic upsert operation
+    cursor.execute('''
+        INSERT OR REPLACE INTO processed_files (filename, status, attempts, error)
+        VALUES (?, ?, ?, ?)
+    ''', (record['filename'], record['status'], int(record['attempts']), record['error']))
+    
+    conn.commit()
+    conn.close()
 
 
 def ensure_export_directory():
@@ -45,41 +99,6 @@ def ensure_export_directory():
     if not os.path.exists(EXPORT_DIR):
         os.makedirs(EXPORT_DIR)
         print(f"Created export directory: {EXPORT_DIR}")
-
-
-def load_processed():
-    """Load processed file records from CSV into a dict."""
-    processed = {}
-    if os.path.exists(DB_CSV):
-        with open(DB_CSV, newline="", encoding="utf-8") as csvfile:
-            reader = csv.DictReader(csvfile)
-            for row in reader:
-                processed[row["filename"]] = row
-    return processed
-
-
-def update_db(record):
-    """Update or insert a processing record into the CSV database."""
-    records = []
-    found = False
-
-    if os.path.exists(DB_CSV):
-        with open(DB_CSV, newline="", encoding="utf-8") as csvfile:
-            reader = csv.DictReader(csvfile)
-            for row in reader:
-                if row["filename"] == record["filename"]:
-                    records.append(record)
-                    found = True
-                else:
-                    records.append(row)
-
-    if not found:
-        records.append(record)
-
-    with open(DB_CSV, "w", newline="", encoding="utf-8") as csvfile:
-        writer = csv.DictWriter(csvfile, fieldnames=FIELDNAMES)
-        writer.writeheader()
-        writer.writerows(records)
 
 
 def get_pdf_files():
